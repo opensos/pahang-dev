@@ -149,8 +149,22 @@
       background: transparent;
       color: inherit;
       font: inherit;
+      caret-color: currentColor !important;
+      cursor: text;
+      opacity: 1;
+      -webkit-text-fill-color: currentColor;
     }
-    #term-input:focus, #vi-cmd:focus { box-shadow: none; }
+
+    #term-input:focus,
+    #vi-cmd:focus {
+      box-shadow: none;
+      outline: none;
+      caret-color: currentColor !important;
+    }
+
+    #vi-cmd {
+      width: 100%;
+    }
     #vi-lab {
       position: absolute;
       inset: 0;
@@ -182,6 +196,36 @@
       tab-size: 4;
     }
     #vi-editor:focus { box-shadow: none; }
+
+    /* vi-style cursor: block on the current character in NORMAL mode */
+    #vi-block-cursor {
+      position: absolute;
+      z-index: 4;
+      display: none;
+      pointer-events: none;
+      box-sizing: border-box;
+      background: var(--pico-color);
+      color: var(--pico-background-color);
+      font: inherit;
+      font-size: 14px;
+      line-height: 1.6;
+      text-align: left;
+      white-space: pre;
+      overflow: hidden;
+    }
+
+    #vi-lab.normal-mode #vi-editor {
+      caret-color: transparent;
+    }
+
+    #vi-lab.normal-mode #vi-block-cursor {
+      display: block;
+    }
+
+    #vi-lab.command-mode #vi-block-cursor,
+    #vi-lab.insert-mode #vi-block-cursor {
+      display: none;
+    }
     #vi-command-row {
       display: none;
       align-items: baseline;
@@ -233,6 +277,7 @@
 
     <div id="vi-lab">
       <textarea id="vi-editor" wrap="off" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+      <span id="vi-block-cursor" aria-hidden="true">&nbsp;</span>
       <div id="vi-command-row"><span id="vi-prefix">:</span><input id="vi-cmd" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
       <div id="vi-status"><span id="vi-mode">\"httpd.conf\"</span><span id="vi-pos">1,1</span></div>
       <div id="vi-mobile-keys">
@@ -263,6 +308,7 @@
     const termPrompt = document.getElementById('term-prompt');
     const vi = document.getElementById('vi-lab');
     const editor = document.getElementById('vi-editor');
+    const blockCursor = document.getElementById('vi-block-cursor');
     const modeEl = document.getElementById('vi-mode');
     const posEl = document.getElementById('vi-pos');
     const cmdRow = document.getElementById('vi-command-row');
@@ -678,6 +724,52 @@
       }
     });
 
+    function viCursorMetrics() {
+      const style = getComputedStyle(editor);
+      const canvas = viCursorMetrics.canvas || (viCursorMetrics.canvas = document.createElement('canvas'));
+      const ctx = canvas.getContext('2d');
+      ctx.font = style.font;
+      const charWidth = ctx.measureText('M').width || parseFloat(style.fontSize) * 0.6;
+      const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.6;
+
+      return {
+        charWidth,
+        lineHeight,
+        padLeft: parseFloat(style.paddingLeft) || 0,
+        padTop: parseFloat(style.paddingTop) || 0
+      };
+    }
+
+    function updateBlockCursor() {
+      if (!vi.classList.contains('active') || mode !== 'normal' || cmdRow.classList.contains('active')) {
+        blockCursor.style.display = 'none';
+        return;
+      }
+
+      const p = editor.selectionStart;
+      const before = editor.value.slice(0, p);
+      const parts = before.split('\n');
+      const row = parts.length - 1;
+      const col = parts[parts.length - 1].length;
+      const m = viCursorMetrics();
+
+      const x = editor.offsetLeft + m.padLeft + (col * m.charWidth) - editor.scrollLeft;
+      const y = editor.offsetTop + m.padTop + (row * m.lineHeight) - editor.scrollTop;
+
+      blockCursor.style.left = x + 'px';
+      blockCursor.style.top = y + 'px';
+      blockCursor.style.width = Math.max(2, m.charWidth) + 'px';
+      blockCursor.style.height = m.lineHeight + 'px';
+      blockCursor.style.lineHeight = m.lineHeight + 'px';
+
+      const ch = editor.value[p];
+      blockCursor.textContent = (!ch || ch === '\n' || ch === '\t') ? '\u00a0' : ch;
+      blockCursor.style.display = 'block';
+    }
+
+    editor.addEventListener('scroll', updateBlockCursor);
+    window.addEventListener('resize', updateBlockCursor);
+
     function enterVi(path) {
       activeFile = path;
       if (isDir(path)) { print(`vi: ${path}: Is a directory`); finishShell(); return; }
@@ -686,12 +778,16 @@
       editor.value = saved;
       undo = []; yank = ''; pending = ''; lastSearch = '';
       mode = 'normal'; editor.readOnly = true;
-      vi.classList.add('active'); termLine.style.display = 'none';
-      setCaret(0); editor.focus(); updateStatus();
+      vi.classList.add('active', 'normal-mode');
+      vi.classList.remove('insert-mode', 'command-mode');
+      termLine.style.display = 'none';
+      setCaret(0); editor.focus(); updateStatus(); updateBlockCursor();
     }
     function leaveVi(force=false) {
       if (!force && editor.value !== saved) { flash('No write since last change (add ! to override)'); return; }
-      vi.classList.remove('active'); termLine.style.display=''; cmdRow.classList.remove('active');
+      vi.classList.remove('active', 'normal-mode', 'insert-mode', 'command-mode');
+      blockCursor.style.display = 'none';
+      termLine.style.display=''; cmdRow.classList.remove('active');
       termInput.value=''; updatePrompt(); termInput.focus(); scrollTerminal();
     }
     function fileLabel() { return base(activeFile); }
@@ -699,6 +795,7 @@
       const p=editor.selectionStart, b=editor.value.slice(0,p).split('\n');
       posEl.textContent = b.length + ',' + (b[b.length-1].length+1);
       modeEl.textContent = mode === 'insert' ? '-- INSERT --' : `"${fileLabel()}"${editor.value!==saved?' [+]':''}`;
+      requestAnimationFrame(updateBlockCursor);
     }
     function flash(t) { modeEl.textContent=t; setTimeout(updateStatus,1400); }
     function setCaret(p) { p=Math.max(0,Math.min(p,editor.value.length)); editor.setSelectionRange(p,p); updateStatus(); }
@@ -724,10 +821,48 @@
     function delChar(){ const p=editor.selectionStart; if(p>=editor.value.length)return; snapshot(); editor.value=editor.value.slice(0,p)+editor.value.slice(p+1); setCaret(Math.min(p,Math.max(0,editor.value.length-1))); }
     function goLine(n){ n=Math.max(1,Number(n)||1); const a=editor.value.split('\n'); let p=0; for(let i=1;i<Math.min(n,a.length);i++)p+=a[i-1].length+1; setCaret(p); }
     function save(){ fs[activeFile]=editor.value; saved=editor.value; saveFs(); flash(`"${fileLabel()}" ${editor.value.split('\n').length}L written`); }
-    function normal(){ mode='normal'; editor.readOnly=true; pending=''; updateStatus(); editor.focus(); }
-    function insert(){ snapshot(); mode='insert'; editor.readOnly=false; updateStatus(); editor.focus(); }
-    function openCmd(p){ prefixEl.textContent=p; cmdInput.value=''; cmdRow.classList.add('active'); cmdInput.focus(); }
-    function closeCmd(){ cmdRow.classList.remove('active'); editor.focus(); }
+    function normal(){
+      mode='normal';
+      editor.readOnly=true;
+      pending='';
+      vi.classList.add('normal-mode');
+      vi.classList.remove('insert-mode', 'command-mode');
+      updateStatus();
+      editor.focus();
+      updateBlockCursor();
+    }
+
+    function insert(){
+      snapshot();
+      mode='insert';
+      editor.readOnly=false;
+      vi.classList.add('insert-mode');
+      vi.classList.remove('normal-mode', 'command-mode');
+      blockCursor.style.display='none';
+      updateStatus();
+      editor.focus();
+    }
+    function openCmd(p){
+      prefixEl.textContent=p;
+      cmdInput.value='';
+      cmdRow.classList.add('active');
+      vi.classList.add('command-mode');
+      vi.classList.remove('normal-mode');
+      blockCursor.style.display='none';
+
+      requestAnimationFrame(() => {
+        cmdInput.focus({preventScroll:true});
+        cmdInput.setSelectionRange(0, 0);
+      });
+    }
+
+    function closeCmd(){
+      cmdRow.classList.remove('active');
+      vi.classList.remove('command-mode');
+      if (mode === 'normal') vi.classList.add('normal-mode');
+      editor.focus();
+      updateBlockCursor();
+    }
     function search(q,next=false){ if(!q)return; lastSearch=q; const t=editor.value,start=next?editor.selectionEnd:editor.selectionStart+1; let i=t.indexOf(q,start); if(i<0)i=t.indexOf(q); if(i<0){flash('Pattern not found: '+q);return;} editor.setSelectionRange(i,i+q.length); updateStatus(); editor.focus(); }
     function runCmd(prefix,cmdRaw){
       closeCmd(); const c=cmdRaw.trim();
@@ -742,7 +877,7 @@
     }
     cmdInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();runCmd(prefixEl.textContent,cmdInput.value);} else if(e.key==='Escape'){e.preventDefault();closeCmd();} });
     editor.addEventListener('input',updateStatus);
-    editor.addEventListener('click',updateStatus);
+    editor.addEventListener('click',()=>{ updateStatus(); updateBlockCursor(); });
     editor.addEventListener('keydown',e=>{
       if(e.key==='Escape'){e.preventDefault();normal();return;}
       if(mode==='insert')return;
