@@ -90,6 +90,132 @@
         padding-top: 4rem;
       }
     }
+
+
+    /* Hidden vi learning terminal — initial landing page remains unchanged */
+    #terminal-lab {
+      position: fixed;
+      inset: 0;
+      display: none;
+      background: var(--pico-background-color);
+      color: var(--pico-color);
+      font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        "Liberation Mono",
+        "Courier New",
+        monospace;
+      font-size: 14px;
+      z-index: 99;
+      overflow: hidden;
+    }
+    #terminal-lab.active {
+      display: block;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    #term-out {
+      margin: 0;
+      padding: 1rem 1rem 0;
+      overflow: visible;
+      white-space: pre-wrap;
+      text-align: left;
+      line-height: 1.6;
+    }
+    #term-line {
+      display: flex;
+      align-items: baseline;
+      padding: 0 1rem 1rem;
+      text-align: left;
+      line-height: 1.6;
+    }
+    #term-line > span {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+    #term-input, #vi-cmd {
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      height: auto;
+      border: 0;
+      border-radius: 0;
+      outline: 0;
+      box-shadow: none;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+    }
+    #term-input:focus, #vi-cmd:focus { box-shadow: none; }
+    #vi-lab {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      background: var(--pico-background-color);
+      color: var(--pico-color);
+    }
+    #vi-lab.active { display: flex; }
+    #vi-editor {
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      margin: 0;
+      padding: 1rem;
+      resize: none;
+      border: 0;
+      border-radius: 0;
+      outline: 0;
+      box-shadow: none;
+      background: transparent;
+      color: inherit;
+      caret-color: currentColor;
+      font: inherit;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre;
+      overflow: auto;
+      tab-size: 4;
+    }
+    #vi-editor:focus { box-shadow: none; }
+    #vi-command-row {
+      display: none;
+      align-items: baseline;
+      padding: 0 1rem .35rem;
+    }
+    #vi-command-row.active { display: flex; }
+    #vi-status {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: .35rem 1rem;
+      border-top: 1px solid var(--pico-muted-border-color);
+      white-space: nowrap;
+      text-align: left;
+    }
+    #vi-mobile-keys {
+      display: none;
+      gap: .35rem;
+      padding: .45rem 1rem calc(.45rem + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--pico-muted-border-color);
+    }
+    #vi-mobile-keys button {
+      width: auto;
+      min-width: 0;
+      margin: 0;
+      padding: .2rem .5rem;
+      border-radius: 0;
+      font-family: inherit;
+      font-size: 11px;
+    }
+    @media (pointer: coarse), (max-width: 576px) {
+      #vi-mobile-keys { display: flex; }
+    }
+
   </style>
 </head>
 
@@ -99,5 +225,551 @@
       pahang.dev<span class="cursor" aria-hidden="true"></span>
     </p>
   </main>
+
+
+  <section id="terminal-lab" aria-label="Basic vi learning terminal">
+    <pre id="term-out"></pre>
+    <div id="term-line"><span id="term-prompt">root@freebsd:~ #&nbsp;</span><input id="term-input" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+
+    <div id="vi-lab">
+      <textarea id="vi-editor" wrap="off" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+      <div id="vi-command-row"><span id="vi-prefix">:</span><input id="vi-cmd" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div id="vi-status"><span id="vi-mode">\"httpd.conf\"</span><span id="vi-pos">1,1</span></div>
+      <div id="vi-mobile-keys">
+        <button type="button" class="outline secondary" data-vikey="esc">Esc</button>
+        <button type="button" class="outline secondary" data-vikey="i">i</button>
+        <button type="button" class="outline secondary" data-vikey=":">:</button>
+        <button type="button" class="outline secondary" data-vikey="/">/</button>
+        <button type="button" class="outline secondary" data-vikey="dd">dd</button>
+        <button type="button" class="outline secondary" data-vikey="u">u</button>
+      </div>
+    </div>
+  </section>
+
+
+  <script>
+  (() => {
+    const DEFAULT_FILES = {"/root/.cshrc": "# $FreeBSD$\nalias h history 25\nalias j jobs -l\nalias la ls -aF\nalias lf ls -FA\nalias ll ls -lAF\nset prompt = \"%N@%m:%~ %# \"\n", "/root/.profile": "PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin:$HOME/bin\nexport PATH\n", "/etc/rc.conf": "hostname=\"freebsd\"\nifconfig_vtnet0=\"DHCP\"\nsshd_enable=\"YES\"\napache24_enable=\"YES\"\n", "/etc/hosts": "::1                     localhost localhost.my.domain\n127.0.0.1               localhost localhost.my.domain\n192.168.1.50            freebsd freebsd.local\n", "/etc/resolv.conf": "search local\nnameserver 1.1.1.1\nnameserver 8.8.8.8\n", "/etc/fstab": "# Device        Mountpoint      FStype  Options  Dump  Pass#\n/dev/gpt/rootfs  /               ufs     rw       1     1\n/dev/gpt/swapfs  none            swap    sw       0     0\n", "/etc/passwd": "root:*:0:0:Charlie &:/root:/bin/csh\ndaemon:*:1:1:Owner of many system processes:/root:/usr/sbin/nologin\noperator:*:2:5:System &:/:/usr/sbin/nologin\nwww:*:80:80:World Wide Web Owner:/nonexistent:/usr/sbin/nologin\nnobody:*:65534:65534:Unprivileged user:/nonexistent:/usr/sbin/nologin\n", "/etc/group": "wheel:*:0:root\ndaemon:*:1\nkmem:*:2\nsys:*:3\ntty:*:4\noperator:*:5:root\nwww:*:80\nnobody:*:65534\n", "/etc/ssh/sshd_config": "Port 22\nPermitRootLogin no\nPasswordAuthentication yes\nUsePAM yes\nSubsystem sftp /usr/libexec/sftp-server\n", "/boot/loader.conf": "# FreeBSD boot loader configuration\n# Add kernel/module tunables here when required.\n", "/usr/local/etc/apache24/httpd.conf": "ServerRoot \"/usr/local\"\n\nListen 80\n\nLoadModule mpm_prefork_module libexec/apache24/mod_mpm_prefork.so\n\nServerAdmin admin@example.local\nServerName freebsd.local:80\n\nDocumentRoot \"/usr/local/www/apache24/data\"\n\n<Directory \"/usr/local/www/apache24/data\">\n    Options Indexes FollowSymLinks\n    AllowOverride None\n    Require all granted\n</Directory>\n\nErrorLog \"/var/log/httpd-error.log\"\nCustomLog \"/var/log/httpd-access.log\" combined\n", "/usr/local/etc/php.ini": "[PHP]\ndisplay_errors = Off\nlog_errors = On\nmemory_limit = 128M\ndate.timezone = Asia/Kuala_Lumpur\n", "/usr/local/www/apache24/data/index.html": "<!doctype html>\n<html>\n<head><title>It works!</title></head>\n<body><h1>It works!</h1></body>\n</html>\n", "/var/log/messages": "Oct  1 08:00:01 freebsd syslogd: kernel boot file is /boot/kernel/kernel\nOct  1 08:00:03 freebsd root[742]: FreeBSD 14.3-RELEASE started\n", "/var/log/auth.log": "Oct  1 08:04:12 freebsd sshd[911]: Accepted publickey for admin from 192.168.1.20 port 51124 ssh2\n", "/var/log/httpd-access.log": "192.168.1.20 - - [01/Oct/2026:08:10:22 +0800] \"GET / HTTP/1.1\" 200 72\n", "/var/log/httpd-error.log": "[Thu Oct 01 08:00:05.121443 2026] [mpm_prefork:notice] [pid 842] AH00163: Apache/2.4 configured -- resuming normal operations\n", "/var/run/hostname": "freebsd\n", "/tmp/README": "Temporary files are stored here.\n"};
+    const BASE_DIRS = ["/", "/bin", "/boot", "/dev", "/etc", "/etc/ssh", "/home", "/lib", "/libexec", "/media", "/mnt", "/net", "/proc", "/rescue", "/root", "/sbin", "/tmp", "/usr", "/usr/bin", "/usr/include", "/usr/lib", "/usr/libexec", "/usr/local", "/usr/local/bin", "/usr/local/etc", "/usr/local/etc/apache24", "/usr/local/sbin", "/usr/local/share", "/usr/local/www", "/usr/local/www/apache24", "/usr/local/www/apache24/data", "/usr/sbin", "/usr/share", "/usr/src", "/var", "/var/cache", "/var/db", "/var/empty", "/var/log", "/var/mail", "/var/run", "/var/spool", "/var/tmp"];
+    const EXECUTABLES = {"/bin": ["cat", "chmod", "cp", "date", "dd", "df", "echo", "expr", "kill", "ln", "ls", "mkdir", "mv", "pwd", "rm", "rmdir", "sh", "sleep", "test"], "/sbin": ["camcontrol", "devfs", "dump", "fsck", "gpart", "ifconfig", "init", "mount", "newfs", "reboot", "restore", "route", "shutdown", "swapon", "sysctl", "umount"], "/usr/bin": ["awk", "basename", "bzip2", "chpass", "cmp", "cut", "diff", "du", "env", "find", "grep", "head", "id", "less", "login", "man", "more", "passwd", "sed", "sort", "ssh", "tail", "tar", "top", "touch", "uname", "vi", "wc", "who", "whoami"], "/usr/sbin": ["cron", "daemon", "freebsd-update", "newsyslog", "nologin", "pw", "service", "sshd", "sysrc", "tcpdump"], "/usr/local/bin": ["php", "pkg"], "/usr/local/sbin": ["apachectl", "httpd"]};
+    const STORE_KEY = 'pahang.dev.freebsd.fs.v3';
+
+    const brand = document.querySelector('.brand');
+    const landing = document.querySelector('main');
+    const terminal = document.getElementById('terminal-lab');
+    const out = document.getElementById('term-out');
+    const termInput = document.getElementById('term-input');
+    const termLine = document.getElementById('term-line');
+    const termPrompt = document.getElementById('term-prompt');
+    const vi = document.getElementById('vi-lab');
+    const editor = document.getElementById('vi-editor');
+    const modeEl = document.getElementById('vi-mode');
+    const posEl = document.getElementById('vi-pos');
+    const cmdRow = document.getElementById('vi-command-row');
+    const prefixEl = document.getElementById('vi-prefix');
+    const cmdInput = document.getElementById('vi-cmd');
+
+    let fs = loadFs();
+    let cwd = '/root';
+    let activeFile = '/usr/local/etc/apache24/httpd.conf';
+    let saved = '';
+    let mode = 'normal';
+    let undo = [];
+    let yank = '';
+    let pending = '';
+    let lastSearch = '';
+    let commandHistory = [];
+    let historyIndex = 0;
+    let lastTabSignature = '';
+
+    const SHELL_COMMANDS = [
+      'apachectl', 'cat', 'cd', 'clear', 'df', 'exit', 'freebsd-version',
+      'head', 'help', 'hostname', 'id', 'logout', 'ls', 'man', 'mount',
+      'ps', 'pwd', 'resetlab', 'service', 'sysrc', 'tail', 'uname',
+      'vi', 'vim', 'which', 'whoami'
+    ];
+
+    function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
+    function loadFs() {
+      try {
+        const stored = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+        return stored && typeof stored === 'object' ? {...clone(DEFAULT_FILES), ...stored} : clone(DEFAULT_FILES);
+      } catch (_) { return clone(DEFAULT_FILES); }
+    }
+    function saveFs() { localStorage.setItem(STORE_KEY, JSON.stringify(fs)); }
+
+    function normalize(path) {
+      if (!path || path === '~') return '/root';
+      if (path.startsWith('~/')) path = '/root/' + path.slice(2);
+      const raw = path.startsWith('/') ? path : (cwd === '/' ? '/' + path : cwd + '/' + path);
+      const parts = [];
+      raw.split('/').forEach(p => {
+        if (!p || p === '.') return;
+        if (p === '..') parts.pop(); else parts.push(p);
+      });
+      return '/' + parts.join('/');
+    }
+    function parent(path) { const p = normalize(path); if (p === '/') return '/'; return p.slice(0, p.lastIndexOf('/')) || '/'; }
+    function base(path) { const p = normalize(path); return p === '/' ? '/' : p.slice(p.lastIndexOf('/') + 1); }
+    function isDir(path) { return BASE_DIRS.includes(normalize(path)); }
+    function isFile(path) { return Object.prototype.hasOwnProperty.call(fs, normalize(path)); }
+    function homePathDisplay(path) { return path === '/root' ? '~' : path.startsWith('/root/') ? '~' + path.slice(5) : path; }
+    function promptText() { return `root@freebsd:${homePathDisplay(cwd)} #`; }
+    function updatePrompt() { termPrompt.innerHTML = escapeHtml(promptText()) + '&nbsp;'; }
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function scrollTerminal() { requestAnimationFrame(() => { terminal.scrollTop = terminal.scrollHeight; }); }
+    function print(t='') { out.textContent += t + '\n'; scrollTerminal(); }
+
+    function dirEntries(path) {
+      const p = normalize(path);
+      const names = new Set();
+      for (const d of BASE_DIRS) {
+        if (d !== p && parent(d) === p) names.add(base(d) + '/');
+      }
+      for (const f of Object.keys(fs)) {
+        if (parent(f) === p) names.add(base(f));
+      }
+      for (const x of (EXECUTABLES[p] || [])) names.add(x);
+      return [...names].sort((a,b) => a.localeCompare(b));
+    }
+
+    function longLine(path, name) {
+      const clean = name.replace(/\/$/, '');
+      const full = path === '/' ? '/' + clean : path + '/' + clean;
+      if (name.endsWith('/')) return `drwxr-xr-x  2 root wheel      512 Oct  1 08:00 ${clean}`;
+      if ((EXECUTABLES[path] || []).includes(clean)) return `-r-xr-xr-x  1 root wheel    32768 Oct  1 08:00 ${clean}`;
+      const size = (fs[full] || '').length;
+      const owner = full.startsWith('/usr/local/www') ? 'www  www' : 'root wheel';
+      return `-rw-r--r--  1 ${owner.padEnd(10)} ${String(size).padStart(7)} Oct  1 08:00 ${clean}`;
+    }
+
+    function listPath(pathArg, long=false, all=false) {
+      const p = normalize(pathArg || '.');
+      if (isFile(p)) { print(long ? longLine(parent(p), base(p)) : base(p)); return; }
+      if (!isDir(p)) { print(`ls: ${pathArg || '.'}: No such file or directory`); return; }
+      let entries = dirEntries(p);
+      if (all) entries = ['.','..',...entries];
+      if (long) entries.forEach(n => print(n === '.' || n === '..' ? `drwxr-xr-x  2 root wheel      512 Oct  1 08:00 ${n}` : longLine(p,n)));
+      else {
+        const width = Math.max(1, Math.min(24, Math.max(...entries.map(x=>x.length),1) + 4));
+        const cols = Math.max(1, Math.floor(76 / width));
+        for (let i=0;i<entries.length;i+=cols) print(entries.slice(i,i+cols).map(x=>x.padEnd(width)).join('').trimEnd());
+      }
+    }
+
+    function tokenize(s) {
+      const m = s.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+      return m.map(x => (x[0] === '"' || x[0] === "'") ? x.slice(1,-1) : x);
+    }
+
+    function openTerminal() {
+      landing.style.visibility = 'hidden';
+      terminal.classList.add('active');
+      out.textContent = '';
+      cwd = '/root';
+      updatePrompt();
+      print('FreeBSD 14.3-RELEASE (GENERIC)');
+      print('');
+      print('Welcome to FreeBSD!');
+      print('');
+      print("Type 'help' for this learning environment.");
+      print('');
+      termInput.value = '';
+      termInput.focus();
+      scrollTerminal();
+    }
+    function closeTerminal() {
+      vi.classList.remove('active');
+      terminal.classList.remove('active');
+      landing.style.visibility = '';
+    }
+
+    brand.style.cursor = 'pointer';
+    brand.title = 'open terminal';
+    brand.addEventListener('click', openTerminal);
+    document.addEventListener('keydown', e => {
+      if (!terminal.classList.contains('active') && e.key === 'Enter') { e.preventDefault(); openTerminal(); }
+    });
+
+    function help() {
+      print('Filesystem / navigation:');
+      print('  pwd  ls  ls -l  ls -la  cd  cat  head  tail');
+      print('');
+      print('System:');
+      print('  uname -a  freebsd-version  hostname  whoami  id  df -h  mount');
+      print('  ps aux  service apache24 status  apachectl configtest  sysrc');
+      print('');
+      print('Editor:');
+      print('  vi FILE        open a text file in the vi trainer');
+      print('');
+      print('Useful places:');
+      print('  /etc/rc.conf                  services/network startup');
+      print('  /boot/loader.conf             boot loader tunables');
+      print('  /etc/hosts                    local hostname mapping');
+      print('  /etc/resolv.conf              DNS resolver');
+      print('  /etc/ssh/sshd_config          SSH daemon config');
+      print('  /usr/local/etc/apache24       Apache config');
+      print('  /var/log                      system/application logs');
+      print('');
+      print('Shell: Tab autocomplete · Tab twice to list matches · ↑/↓ command history');
+      print('');
+      print('Other: clear  resetlab  help  exit');
+    }
+
+    function shell(cmdRaw) {
+      const cmd = cmdRaw.trim();
+      print(promptText() + ' ' + cmdRaw);
+      if (cmd) { commandHistory.push(cmdRaw); historyIndex = commandHistory.length; }
+      if (!cmd) return finishShell();
+      const a = tokenize(cmd);
+      const command = a[0];
+
+      if (command === 'help') help();
+      else if (command === 'pwd') print(cwd);
+      else if (command === 'cd') {
+        const target = normalize(a[1] || '~');
+        if (!isDir(target)) print(`cd: ${a[1] || ''}: No such file or directory`);
+        else cwd = target;
+      }
+      else if (command === 'ls') {
+        const flags = a.filter(x=>x.startsWith('-')).join('');
+        const pathArg = a.find((x,i)=>i>0 && !x.startsWith('-')) || '.';
+        listPath(pathArg, flags.includes('l'), flags.includes('a'));
+      }
+      else if (command === 'cat' || command === 'head' || command === 'tail') {
+        if (!a[1]) print(`${command}: missing file operand`);
+        else {
+          const p = normalize(a[1]);
+          if (!isFile(p)) print(`${command}: ${a[1]}: No such file or directory`);
+          else {
+            const lines = fs[p].replace(/\n$/, '').split('\n');
+            const view = command === 'head' ? lines.slice(0,10) : command === 'tail' ? lines.slice(-10) : lines;
+            print(view.join('\n'));
+          }
+        }
+      }
+      else if (command === 'vi' || command === 'vim') {
+        if (!a[1]) print('vi: no file specified');
+        else { enterVi(normalize(a[1])); return; }
+      }
+      else if (cmd === 'uname -a') print('FreeBSD freebsd 14.3-RELEASE FreeBSD 14.3-RELEASE releng/14.3-n271432 GENERIC amd64');
+      else if (command === 'uname') print('FreeBSD');
+      else if (command === 'freebsd-version') print('14.3-RELEASE');
+      else if (command === 'hostname') print('freebsd');
+      else if (command === 'whoami') print('root');
+      else if (command === 'id') print('uid=0(root) gid=0(wheel) groups=0(wheel),5(operator)');
+      else if (cmd === 'df -h' || command === 'df') {
+        print('Filesystem         Size    Used   Avail Capacity  Mounted on');
+        print('/dev/gpt/rootfs     24G    4.1G     18G    19%    /');
+        print('devfs              1.0K      0B    1.0K     0%    /dev');
+      }
+      else if (command === 'mount') {
+        print('/dev/gpt/rootfs on / (ufs, local, soft-updates, journaled soft-updates)');
+        print('devfs on /dev (devfs)');
+      }
+      else if (cmd === 'ps aux' || cmd === 'ps -aux') {
+        print('USER   PID %CPU %MEM    VSZ   RSS TT  STAT STARTED    TIME COMMAND');
+        print('root     1  0.0  0.1  12608  1952  -  Is   08:00   0:00.08 /sbin/init');
+        print('root   842  0.0  0.4  43728  9456  -  Is   08:00   0:00.11 /usr/local/sbin/httpd -D NOHTTPACCEPT');
+        print('root   903  0.0  0.2  22784  5348  -  Is   08:00   0:00.04 /usr/sbin/sshd');
+      }
+      else if (cmd === 'service apache24 status') print('apache24 is running as pid 842.');
+      else if (cmd === 'service sshd status') print('sshd is running as pid 903.');
+      else if (cmd === 'apachectl configtest' || cmd === '/usr/local/sbin/apachectl configtest') print('Syntax OK');
+      else if (command === 'sysrc') {
+        if (!a[1]) {
+          const rc = fs['/etc/rc.conf'] || '';
+          rc.split('\n').filter(x=>x && !x.startsWith('#')).forEach(print);
+        } else {
+          const key = a[1].replace(/=.*/, '');
+          const line = (fs['/etc/rc.conf'] || '').split('\n').find(x=>x.startsWith(key+'='));
+          print(line || `${key}: NO`);
+        }
+      }
+      else if (cmd === 'man hier') {
+        print('/bin      fundamental user utilities');
+        print('/boot     bootstrap files and kernel');
+        print('/dev      device special files');
+        print('/etc      system configuration files');
+        print('/root     home directory for root');
+        print('/sbin     fundamental system programs');
+        print('/tmp      temporary files');
+        print('/usr      majority of user utilities and applications');
+        print('/usr/local local executables, libraries and configuration');
+        print('/var      multi-purpose log, temporary, transient and spool files');
+      }
+      else if (command === 'which') {
+        const name = a[1] || '';
+        const candidates = ['/bin','/sbin','/usr/bin','/usr/sbin','/usr/local/bin','/usr/local/sbin'];
+        const found = candidates.find(d => (EXECUTABLES[d] || []).includes(name));
+        if (found) print(found + '/' + name);
+        else print(`${name}: Command not found.`);
+      }
+      else if (command === 'clear') out.textContent = '';
+      else if (command === 'resetlab') { fs = clone(DEFAULT_FILES); saveFs(); print('Learning filesystem restored.'); }
+      else if (command === 'exit' || command === 'logout') { closeTerminal(); return; }
+      else print(`${command}: Command not found.`);
+
+      finishShell();
+    }
+
+    function finishShell() {
+      termInput.value = '';
+      updatePrompt();
+      termInput.focus();
+      scrollTerminal();
+    }
+
+    function commonPrefix(items) {
+      if (!items.length) return '';
+      let prefix = items[0];
+      for (let i = 1; i < items.length; i++) {
+        while (prefix && !items[i].startsWith(prefix)) {
+          prefix = prefix.slice(0, -1);
+        }
+        if (!prefix) break;
+      }
+      return prefix;
+    }
+
+    function replaceInputRange(start, end, replacement) {
+      const value = termInput.value;
+      termInput.value = value.slice(0, start) + replacement + value.slice(end);
+      const pos = start + replacement.length;
+      termInput.setSelectionRange(pos, pos);
+    }
+
+    function pathCompletions(fragment, dirsOnly = false) {
+      let dirPart = '';
+      let leaf = fragment;
+      const slash = fragment.lastIndexOf('/');
+
+      if (slash >= 0) {
+        dirPart = fragment.slice(0, slash + 1);
+        leaf = fragment.slice(slash + 1);
+      }
+
+      let lookup;
+      if (fragment.startsWith('/')) {
+        lookup = dirPart || '/';
+      } else if (fragment.startsWith('~/')) {
+        lookup = dirPart || '~/';
+      } else {
+        lookup = dirPart || '.';
+      }
+
+      const dir = normalize(lookup);
+      if (!isDir(dir)) return [];
+
+      return dirEntries(dir)
+        .filter(name => name.startsWith(leaf))
+        .filter(name => !dirsOnly || name.endsWith('/'))
+        .map(name => dirPart + name);
+    }
+
+    function completionCandidates(command, token, tokenIndex) {
+      if (tokenIndex === 0) {
+        if (token.includes('/')) return pathCompletions(token, false);
+        return SHELL_COMMANDS.filter(name => name.startsWith(token));
+      }
+
+      if (command === 'service' && tokenIndex === 1) {
+        return ['apache24', 'sshd'].filter(x => x.startsWith(token));
+      }
+      if (command === 'service' && tokenIndex === 2) {
+        return ['status'].filter(x => x.startsWith(token));
+      }
+      if (command === 'apachectl' && tokenIndex === 1) {
+        return ['configtest'].filter(x => x.startsWith(token));
+      }
+      if (command === 'man' && tokenIndex === 1) {
+        return ['hier'].filter(x => x.startsWith(token));
+      }
+      if (command === 'which' && tokenIndex === 1) {
+        const all = [...new Set(Object.values(EXECUTABLES).flat())].sort();
+        return all.filter(x => x.startsWith(token));
+      }
+      if (command === 'sysrc' && tokenIndex === 1) {
+        const keys = (fs['/etc/rc.conf'] || '')
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line && !line.startsWith('#') && line.includes('='))
+          .map(line => line.split('=')[0]);
+        return [...new Set(keys)].filter(x => x.startsWith(token));
+      }
+
+      return pathCompletions(token, command === 'cd');
+    }
+
+    function handleTabCompletion() {
+      const cursor = termInput.selectionStart ?? termInput.value.length;
+      const before = termInput.value.slice(0, cursor);
+      const match = before.match(/(?:^|\s)([^\s]*)$/);
+      const token = match ? match[1] : '';
+      const tokenStart = cursor - token.length;
+      const prefixText = before.slice(0, tokenStart).trim();
+      const priorTokens = prefixText ? tokenize(prefixText) : [];
+      const tokenIndex = priorTokens.length;
+      const command = tokenIndex === 0 ? token : (priorTokens[0] || '');
+
+      const matches = completionCandidates(command, token, tokenIndex)
+        .filter((v, i, arr) => arr.indexOf(v) === i)
+        .sort((a, b) => a.localeCompare(b));
+
+      if (!matches.length) {
+        lastTabSignature = '';
+        return;
+      }
+
+      if (matches.length === 1) {
+        const completed = matches[0];
+        const suffix = completed.endsWith('/') ? '' : ' ';
+        replaceInputRange(tokenStart, cursor, completed + suffix);
+        lastTabSignature = '';
+        return;
+      }
+
+      const prefix = commonPrefix(matches);
+      if (prefix.length > token.length) {
+        replaceInputRange(tokenStart, cursor, prefix);
+        lastTabSignature = '';
+        return;
+      }
+
+      const signature = termInput.value + '|' + cursor + '|' + matches.join('|');
+      if (lastTabSignature === signature) {
+        print(matches.join('  '));
+        lastTabSignature = '';
+        termInput.focus();
+        scrollTerminal();
+      } else {
+        lastTabSignature = signature;
+      }
+    }
+
+    termInput.addEventListener('keydown', e => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        handleTabCompletion();
+        return;
+      }
+
+      lastTabSignature = '';
+
+      if (e.key === 'Enter') { e.preventDefault(); shell(termInput.value); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeTerminal(); }
+      else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (commandHistory.length && historyIndex > 0) {
+          termInput.value = commandHistory[--historyIndex];
+          termInput.setSelectionRange(termInput.value.length, termInput.value.length);
+        }
+      }
+      else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (historyIndex < commandHistory.length - 1) {
+          termInput.value = commandHistory[++historyIndex];
+          termInput.setSelectionRange(termInput.value.length, termInput.value.length);
+        }
+        else {
+          historyIndex = commandHistory.length;
+          termInput.value = '';
+        }
+      }
+    });
+
+    function enterVi(path) {
+      activeFile = path;
+      if (isDir(path)) { print(`vi: ${path}: Is a directory`); finishShell(); return; }
+      if (!isFile(path)) fs[path] = '';
+      saved = fs[path];
+      editor.value = saved;
+      undo = []; yank = ''; pending = ''; lastSearch = '';
+      mode = 'normal'; editor.readOnly = true;
+      vi.classList.add('active'); termLine.style.display = 'none';
+      setCaret(0); editor.focus(); updateStatus();
+    }
+    function leaveVi(force=false) {
+      if (!force && editor.value !== saved) { flash('No write since last change (add ! to override)'); return; }
+      vi.classList.remove('active'); termLine.style.display=''; cmdRow.classList.remove('active');
+      termInput.value=''; updatePrompt(); termInput.focus(); scrollTerminal();
+    }
+    function fileLabel() { return base(activeFile); }
+    function updateStatus() {
+      const p=editor.selectionStart, b=editor.value.slice(0,p).split('\n');
+      posEl.textContent = b.length + ',' + (b[b.length-1].length+1);
+      modeEl.textContent = mode === 'insert' ? '-- INSERT --' : `"${fileLabel()}"${editor.value!==saved?' [+]':''}`;
+    }
+    function flash(t) { modeEl.textContent=t; setTimeout(updateStatus,1400); }
+    function setCaret(p) { p=Math.max(0,Math.min(p,editor.value.length)); editor.setSelectionRange(p,p); updateStatus(); }
+    function snapshot() { undo.push({v:editor.value,p:editor.selectionStart}); if(undo.length>100) undo.shift(); }
+    function doUndo() { const s=undo.pop(); if(!s){flash('Already at oldest change');return;} editor.value=s.v; setCaret(s.p); }
+    function lineInfo(p=editor.selectionStart) {
+      const t=editor.value, start=t.lastIndexOf('\n',Math.max(0,p-1))+1; let end=t.indexOf('\n',p); if(end<0) end=t.length;
+      return {start,end,text:t.slice(start,end),nl:end<t.length};
+    }
+    function moveH(d) { const L=lineInfo(), max=Math.max(L.start,L.end-1); setCaret(Math.max(L.start,Math.min(max,editor.selectionStart+d))); }
+    function moveV(d) {
+      const t=editor.value,p=editor.selectionStart,L=lineInfo(p),col=p-L.start;
+      if(d<0){ if(!L.start)return; const pe=L.start-1, ps=t.lastIndexOf('\n',pe-1)+1; setCaret(Math.min(ps+col,pe)); }
+      else { if(L.end>=t.length)return; const ns=L.end+1; let ne=t.indexOf('\n',ns); if(ne<0)ne=t.length; setCaret(Math.min(ns+col,Math.max(ns,ne-1))); }
+    }
+    function dd() {
+      snapshot(); const t=editor.value,L=lineInfo(); let e=L.end+(L.nl?1:0); yank=t.slice(L.start,e) || '\n';
+      if(!L.nl && L.start>0){ editor.value=t.slice(0,L.start-1)+t.slice(e); setCaret(Math.max(0,L.start-1)); }
+      else { editor.value=t.slice(0,L.start)+t.slice(e); setCaret(Math.min(L.start,Math.max(0,editor.value.length-1))); }
+    }
+    function yy(){ const L=lineInfo(); yank=L.text+'\n'; flash('1 line yanked'); }
+    function paste(){ if(!yank){flash('Nothing in yank buffer');return;} snapshot(); const t=editor.value,L=lineInfo(),at=L.nl?L.end+1:L.end,prefix=L.nl?'':'\n'; editor.value=t.slice(0,at)+prefix+yank+t.slice(at); setCaret(at+prefix.length); }
+    function delChar(){ const p=editor.selectionStart; if(p>=editor.value.length)return; snapshot(); editor.value=editor.value.slice(0,p)+editor.value.slice(p+1); setCaret(Math.min(p,Math.max(0,editor.value.length-1))); }
+    function goLine(n){ n=Math.max(1,Number(n)||1); const a=editor.value.split('\n'); let p=0; for(let i=1;i<Math.min(n,a.length);i++)p+=a[i-1].length+1; setCaret(p); }
+    function save(){ fs[activeFile]=editor.value; saved=editor.value; saveFs(); flash(`"${fileLabel()}" ${editor.value.split('\n').length}L written`); }
+    function normal(){ mode='normal'; editor.readOnly=true; pending=''; updateStatus(); editor.focus(); }
+    function insert(){ snapshot(); mode='insert'; editor.readOnly=false; updateStatus(); editor.focus(); }
+    function openCmd(p){ prefixEl.textContent=p; cmdInput.value=''; cmdRow.classList.add('active'); cmdInput.focus(); }
+    function closeCmd(){ cmdRow.classList.remove('active'); editor.focus(); }
+    function search(q,next=false){ if(!q)return; lastSearch=q; const t=editor.value,start=next?editor.selectionEnd:editor.selectionStart+1; let i=t.indexOf(q,start); if(i<0)i=t.indexOf(q); if(i<0){flash('Pattern not found: '+q);return;} editor.setSelectionRange(i,i+q.length); updateStatus(); editor.focus(); }
+    function runCmd(prefix,cmdRaw){
+      closeCmd(); const c=cmdRaw.trim();
+      if(prefix==='/'){search(c);return;}
+      if(/^\d+$/.test(c)){goLine(c);return;}
+      if(c==='w')save();
+      else if(c==='q')leaveVi(false);
+      else if(c==='q!'){editor.value=saved;leaveVi(true);}
+      else if(c==='wq'||c==='x'){save();leaveVi(true);}
+      else if(c==='help')flash('i Esc h j k l dd yy p u x / n gg G :w :q :wq :q! :25');
+      else flash('Not an editor command: '+c);
+    }
+    cmdInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();runCmd(prefixEl.textContent,cmdInput.value);} else if(e.key==='Escape'){e.preventDefault();closeCmd();} });
+    editor.addEventListener('input',updateStatus);
+    editor.addEventListener('click',updateStatus);
+    editor.addEventListener('keydown',e=>{
+      if(e.key==='Escape'){e.preventDefault();normal();return;}
+      if(mode==='insert')return;
+      const k=e.key;
+      if(k==='i'){e.preventDefault();insert();return;}
+      if(k===':'){e.preventDefault();openCmd(':');return;}
+      if(k==='/'){e.preventDefault();openCmd('/');return;}
+      if(k==='n'){e.preventDefault();if(lastSearch)search(lastSearch,true);return;}
+      if(k==='u'){e.preventDefault();doUndo();return;}
+      if(k==='p'){e.preventDefault();paste();return;}
+      if(k==='x'){e.preventDefault();delChar();return;}
+      if(k==='G'){e.preventDefault();setCaret(Math.max(0,editor.value.length-1));editor.scrollTop=editor.scrollHeight;return;}
+      if(k==='g'){e.preventDefault(); if(pending==='g'){setCaret(0);editor.scrollTop=0;pending='';} else {pending='g';setTimeout(()=>pending='',650);} return;}
+      if(k==='d'){e.preventDefault(); if(pending==='d'){dd();pending='';} else {pending='d';setTimeout(()=>pending='',650);} return;}
+      if(k==='y'){e.preventDefault(); if(pending==='y'){yy();pending='';} else {pending='y';setTimeout(()=>pending='',650);} return;}
+      if(k==='h'||k==='ArrowLeft'){e.preventDefault();moveH(-1);return;}
+      if(k==='l'||k==='ArrowRight'){e.preventDefault();moveH(1);return;}
+      if(k==='k'||k==='ArrowUp'){e.preventDefault();moveV(-1);return;}
+      if(k==='j'||k==='ArrowDown'){e.preventDefault();moveV(1);return;}
+      if(k.length===1||['Backspace','Delete','Enter'].includes(k))e.preventDefault();
+    });
+    document.querySelectorAll('[data-vikey]').forEach(b=>b.addEventListener('click',()=>{
+      const k=b.dataset.vikey;
+      if(k==='esc')normal(); else if(k==='i')insert(); else if(k===':'){normal();openCmd(':');} else if(k==='/'){normal();openCmd('/');} else if(k==='dd'){normal();dd();} else if(k==='u'){normal();doUndo();}
+    }));
+  })();
+  </script>
+
 </body>
 </html>
